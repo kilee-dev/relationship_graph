@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/google/uuid"
 
-	"errors"
 	"fmt"
 	"os"
 )
@@ -34,7 +33,7 @@ func (graph RelationshipGraph) QueryAllUsers() ([]User, error) {
 func (graph RelationshipGraph) QueryFollowers(user User) ([]User, error) {
 	// edge case - user not exists
 	if _, exist := graph.Users[user.ID]; !exist {
-		return nil, errors.New(fmt.Sprintf("Queried user %v doesn't exist", user))
+		return nil, fmt.Errorf("queried user %v doesn't exist", user)
 	}
 
 	userList := make([]User, 0)
@@ -47,7 +46,7 @@ func (graph RelationshipGraph) QueryFollowers(user User) ([]User, error) {
 
 func (graph RelationshipGraph) QueryFollowees(user User) ([]User, error) {
 	if _, exist := graph.Users[user.ID]; !exist {
-		return nil, errors.New(fmt.Sprintf("Queried user %v doesn't exist", user))
+		return nil, fmt.Errorf("queried user %v doesn't exist", user)
 	}
 
 	userList := make([]User, 0)
@@ -61,7 +60,7 @@ func (graph RelationshipGraph) QueryFollowees(user User) ([]User, error) {
 func (graph RelationshipGraph) AddUser(user User) (bool, error) {
 	// edge case - user already registered in the graph
 	if _, exist := graph.Users[user.ID]; exist {
-		return false, errors.New(fmt.Sprintf("Queried user %v already registered", user))
+		return false, fmt.Errorf("queried user %v already registered", user)
 	}
 
 	graph.Users[user.ID] = user
@@ -80,16 +79,16 @@ func (graph RelationshipGraph) AddUser(user User) (bool, error) {
 func (graph RelationshipGraph) FollowUser(follower User, followee User) (bool, error) {
 	// edge case when follower and followee doesn't exist
 	if _, exist := graph.Users[follower.ID]; !exist {
-		return false, errors.New(fmt.Sprintf("Queried user %v doesn't exist", follower))
+		return false, fmt.Errorf("queried user %v doesn't exist", follower)
 	}
 
 	if _, exist := graph.Users[followee.ID]; !exist {
-		return false, errors.New(fmt.Sprintf("Queried user %v doesn't exist", followee))
+		return false, fmt.Errorf("queried user %v doesn't exist", followee)
 	}
 
 	// edge case when follower is already following followee
 	if _, exist := graph.FollowerRelationship[follower.ID][followee.ID]; exist {
-		return false, errors.New(fmt.Sprintf("User %v is already following user %v", follower, followee))
+		return false, fmt.Errorf("User %v is already following user %v", follower, followee)
 	}
 
 	graph.FollowerRelationship[follower.ID][followee.ID] = true
