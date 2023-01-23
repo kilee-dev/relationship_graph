@@ -57,6 +57,77 @@ func (graph RelationshipGraph) QueryFollowees(user User) ([]User, error) {
 	return userList, nil
 }
 
+func (graph RelationshipGraph) QueryFriendRelationship(user1 User, user2 User) (bool, error) {
+	if _, exist := graph.Users[user1.ID]; !exist {
+		return false, fmt.Errorf("queried user %v not exist", user1)
+	}
+
+	if _, exist := graph.Users[user2.ID]; !exist {
+		return false, fmt.Errorf("queried user %v not exist", user2)
+	}
+
+	if _, firstUserFollowingSecondUser := graph.FollowerRelationship[user1.ID][user2.ID]; !firstUserFollowingSecondUser {
+		return false, nil
+	}
+
+	if _, secondUserFollowingFirstUser := graph.FollowerRelationship[user2.ID][user1.ID]; !secondUserFollowingFirstUser {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func (graph RelationshipGraph) QueryMutualFriends(user1 User, user2 User) ([]User, error) {
+	if _, exist := graph.Users[user1.ID]; !exist {
+		return nil, fmt.Errorf("queried user %v not exist", user1)
+	}
+
+	if _, exist := graph.Users[user2.ID]; !exist {
+		return nil, fmt.Errorf("queried user %v not exist", user2)
+	}
+
+	firstUserFriendMap := make(map[uuid.UUID]bool, 0)
+	// user 1 -> follow -> follower
+	for followerID, _ := range graph.FollowerRelationship[user1.ID] {
+		if _, isFriend := graph.FolloweeRelationship[user1.ID][followerID]; isFriend {
+			firstUserFriendMap[followerID] = true
+		}
+	}
+
+	mutualFriendList := make([]User, 0)
+	// get all the list of followees
+	for followerID, _ := range graph.FolloweeRelationship[user2.ID] {
+		// if follwer is not a friend of user1
+		if _, isFirstUserFriend := firstUserFriendMap[followerID]; !isFirstUserFriend {
+			continue
+		}
+
+		// if follower is not a friend of user2
+		if _, isFriend := graph.FolloweeRelationship[user2.ID][followerID]; !isFriend {
+			continue
+		}
+
+		mutualFriendList = append(mutualFriendList, graph.Users[followerID])
+	}
+
+	return mutualFriendList, nil
+}
+
+func (graph RelationshipGraph) QueryUnfollowingFriends(user User) ([]User, error) {
+	if _, exist := graph.Users[user.ID]; !exist {
+		return nil, fmt.Errorf("queried user %v not exist", user)
+	}
+
+	unfollowingFriendList := make([]User, 0)
+	for followeeID, _ := range graph.FolloweeRelationship[user.ID] {
+		if _, exist := graph.FollowerRelationship[user.ID][followeeID]; !exist {
+			unfollowingFriendList = append(unfollowingFriendList, graph.Users[followeeID])
+		}
+	}
+
+	return unfollowingFriendList, nil
+}
+
 func (graph RelationshipGraph) AddUser(user User) (bool, error) {
 	// edge case - user already registered in the graph
 	if _, exist := graph.Users[user.ID]; exist {
@@ -191,5 +262,83 @@ func main() {
 	_, err = relationshipGraph.QueryFollowees(userC)
 	if err != nil {
 		fmt.Printf("relationshipGraph.QueryFollowees err=%v\n", err)
+	}
+
+	userList, err := relationshipGraph.QueryAllUsers()
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryAllUsers err=%v\n", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("relationshipGraph.QueryAllUsers expected:%d, actual:%d\n", 2, len(userList))
+	}
+
+	unfollowingFriendList, err := relationshipGraph.QueryUnfollowingFriends(userA)
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryUnfollowingFriends err=%v", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("relationshipGraph.QueryUnfollowingFriends expected:%d, actual:%d\n", 0, len(unfollowingFriendList))
+	}
+
+	unfollowingFriendList, err = relationshipGraph.QueryUnfollowingFriends(userB)
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryUnfollowingFriends err=%v", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("relationshipGraph.QueryUnfollowingFriends expected:%d, actual:%d\n", 1, len(unfollowingFriendList))
+	}
+
+	// edge case - not registered user
+	_, err = relationshipGraph.QueryUnfollowingFriends(userC)
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryUnfollowingFriends err=%v\n", err)
+	}
+
+	isFriendEachOther, err := relationshipGraph.QueryFriendRelationship(userA, userB)
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryFriendRelationship err=%v\n", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("relationshipGraph.QueryFriendRelationship expected:%t, actual:%t\n", false, isFriendEachOther)
+	}
+
+	_, err = relationshipGraph.FollowUser(userB, userA)
+	if err != nil {
+		fmt.Printf("relationshipGraph.FollowUser err=%v\n", err)
+		os.Exit(1)
+	}
+
+	isFriendEachOther, err = relationshipGraph.QueryFriendRelationship(userA, userB)
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryFriendRelationship err=%v", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("relationshipGraph.QueryFriendRelationship expected:%t, actual:%t\n", true, isFriendEachOther)
+	}
+
+	_, err = relationshipGraph.AddUser(userC)
+	if err != nil {
+		fmt.Printf("relationshipGraph.AddUser err=%v\n", err)
+		os.Exit(1)
+	}
+
+	_, err = relationshipGraph.FollowUser(userC, userA)
+	if err != nil {
+		fmt.Printf("relationshipGraph.FollowUser err=%v\n", err)
+		os.Exit(1)
+	}
+
+	_, err = relationshipGraph.FollowUser(userA, userC)
+	if err != nil {
+		fmt.Printf("relationshipGraph.FollowUser err=%v\n", err)
+		os.Exit(1)
+	}
+
+	mutualFriendList, err := relationshipGraph.QueryMutualFriends(userB, userC)
+	if err != nil {
+		fmt.Printf("relationshipGraph.QueryMutualFriends err=%v", err)
+		os.Exit(1)
+	} else {
+		fmt.Printf("relationshipGraph.QueryMutualFriends expected:%d, actual:%d\n", 1, len(mutualFriendList))
 	}
 }
